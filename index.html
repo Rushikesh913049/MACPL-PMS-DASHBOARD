@@ -1648,39 +1648,82 @@ function findEmployee(query) {
 }
 
 // ════════════════════════════════════════════════
-// LOGIN
+// LOGIN — wrapped in DOMContentLoaded for GitHub Pages compatibility
 // ════════════════════════════════════════════════
 (function(){
   const UID='MACPL', PWD='TRESPHERES';
   let inited = false;
+
   function tryLogin(){
-    const u=document.getElementById('l_uid').value.trim();
-    const p=document.getElementById('l_pwd').value.trim();
-    if(u===UID&&p===PWD){
+    const uidEl = document.getElementById('l_uid');
+    const pwdEl = document.getElementById('l_pwd');
+    const errEl = document.getElementById('l_err');
+    if(!uidEl||!pwdEl) return;
+    const u = uidEl.value.trim();
+    const p = pwdEl.value.trim();
+    if(u===UID && p===PWD){
       document.getElementById('loginWrap').style.display='none';
       document.getElementById('appWrap').style.display='block';
-      if(!inited){inited=true;setTimeout(()=>{
-        loadLiveData((loaded) => {
-          initCharts();
-          populateAll();
-          startAutoRefresh(300); // auto-refresh every 5 minutes
-        });
-      },200);}
+      errEl.style.display='none';
+      if(!inited){
+        inited=true;
+        setTimeout(()=>{
+          loadLiveData((loaded)=>{
+            initCharts();
+            populateAll();
+            startAutoRefresh(300);
+          });
+        },200);
+      }
     } else {
-      document.getElementById('l_err').style.display='block';
-      document.getElementById('l_pwd').value='';
+      errEl.style.display='block';
+      pwdEl.value='';
+      pwdEl.focus();
     }
   }
-  document.getElementById('l_btn').addEventListener('click',tryLogin);
-  document.getElementById('l_out').addEventListener('click',()=>{
-    document.getElementById('appWrap').style.display='none';
-    document.getElementById('loginWrap').style.display='flex';
-    document.getElementById('l_uid').value='';document.getElementById('l_pwd').value='';
-    document.getElementById('l_err').style.display='none';
-  });
-  document.addEventListener('keydown',e=>{
-    if(e.key==='Enter'&&document.getElementById('loginWrap').style.display!=='none') tryLogin();
-  });
+
+  function setupLogin(){
+    const btn   = document.getElementById('l_btn');
+    const outBtn= document.getElementById('l_out');
+    const wrap  = document.getElementById('loginWrap');
+    const uid   = document.getElementById('l_uid');
+    const pwd   = document.getElementById('l_pwd');
+    if(!btn||!outBtn||!wrap) return;
+
+    btn.addEventListener('click', tryLogin);
+
+    outBtn.addEventListener('click',()=>{
+      document.getElementById('appWrap').style.display='none';
+      wrap.style.display='flex';
+      uid.value=''; pwd.value='';
+      document.getElementById('l_err').style.display='none';
+    });
+
+    document.addEventListener('keydown',e=>{
+      if(e.key==='Enter' && wrap.style.display!=='none') tryLogin();
+    });
+
+    // Also wire cat_modal close here safely
+    const catModal = document.getElementById('cat_modal');
+    if(catModal){
+      catModal.addEventListener('click',e=>{
+        if(e.target===catModal) closeCatModal();
+      });
+    }
+    const histModal = document.getElementById('hist_modal');
+    if(histModal){
+      histModal.addEventListener('click',e=>{
+        if(e.target===histModal) closeModal();
+      });
+    }
+  }
+
+  // Run immediately if DOM is ready, otherwise wait
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', setupLogin);
+  } else {
+    setupLogin();
+  }
 })();
 
 // ════════════════════════════════════════════════
@@ -2000,9 +2043,8 @@ function showDonutDetail(cat){
   document.getElementById('cat_modal').classList.add('open');
 }
 function closeCatModal(){ document.getElementById('cat_modal').classList.remove('open'); }
-document.addEventListener('DOMContentLoaded',()=>{
-  document.getElementById('cat_modal').addEventListener('click',e=>{if(e.target===document.getElementById('cat_modal'))closeCatModal();});
-});
+
+
 
 function initCharts(){
   // Trend chart (with dropdown)
@@ -2702,7 +2744,8 @@ function openModal(name){
   document.getElementById('hist_modal').classList.add('open');
 }
 function closeModal(){ document.getElementById('hist_modal').classList.remove('open'); }
-document.getElementById('hist_modal').addEventListener('click',e=>{ if(e.target===document.getElementById('hist_modal')) closeModal(); });
+
+
 
 // ════════════════════════════════════════════════
 // CURRENT REPORT
