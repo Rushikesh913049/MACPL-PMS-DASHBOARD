@@ -837,30 +837,62 @@ function loadLiveData(callback) {
     callback(false);
     return;
   }
-  // Show loading overlay
+
   const overlay = document.getElementById('loadingOverlay');
   if (overlay) overlay.style.display = 'flex';
 
-  fetch(SHEET_API_URL + "?t=" + Date.now())
-    .then(r => {
-      if (!r.ok) throw new Error('Network response was not ok');
-      return r.json();
-    })
-    .then(data => {
-      if (overlay) overlay.style.display = 'none';
-      applyLiveData(data);
-      LIVE_DATA_LOADED = true;
-      showToast("✅ Live data loaded from Google Sheets");
-      const badge = document.getElementById('dataSourceBadge');
-      if(badge) { badge.textContent = '🟢 Live: Google Sheets'; badge.style.background='rgba(30,200,100,.3)'; }
-      callback(true);
-    })
-    .catch(err => {
-      if (overlay) overlay.style.display = 'none';
-      console.warn("Live data fetch failed, using built-in data:", err);
+  // Use JSONP to bypass CORS — works with Google Apps Script
+  const callbackName = 'macplCallback_' + Date.now();
+  const script = document.createElement('script');
+  
+  // Timeout after 10 seconds
+  const timer = setTimeout(() => {
+    cleanup();
+    if (overlay) overlay.style.display = 'none';
+    console.warn("Google Sheets request timed out — using built-in data");
+    showToast("⚠️ Google Sheets timeout — showing built-in data");
+    callback(false);
+  }, 10000);
+
+  function cleanup() {
+    clearTimeout(timer);
+    delete window[callbackName];
+    if (script.parentNode) script.parentNode.removeChild(script);
+  }
+
+  window[callbackName] = function(data) {
+    cleanup();
+    if (overlay) overlay.style.display = 'none';
+    try {
+      if (data && !data.error) {
+        applyLiveData(data);
+        LIVE_DATA_LOADED = true;
+        showToast("✅ Live data loaded from Google Sheets");
+        const badge = document.getElementById('dataSourceBadge');
+        if(badge) {
+          badge.textContent = '🟢 Live: Google Sheets';
+          badge.style.background = 'rgba(30,200,100,.3)';
+        }
+        callback(true);
+      } else {
+        throw new Error(data ? data.error : 'No data returned');
+      }
+    } catch(err) {
+      console.warn("Error applying live data:", err);
       showToast("⚠️ Could not load Google Sheets data — showing built-in data");
       callback(false);
-    });
+    }
+  };
+
+  script.src = SHEET_API_URL + '?callback=' + callbackName + '&t=' + Date.now();
+  script.onerror = function() {
+    cleanup();
+    if (overlay) overlay.style.display = 'none';
+    console.warn("JSONP script load failed — using built-in data");
+    showToast("⚠️ Could not reach Google Sheets — showing built-in data");
+    callback(false);
+  };
+  document.head.appendChild(script);
 }
 
 function applyLiveData(data) {
